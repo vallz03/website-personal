@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vallzada Store</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #e0f7fa; padding: 20px; }
+    .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
+    input, button, select { width: 100%; padding: 10px; margin: 8px 0; }
+    button { background: #00bcd4; color: white; border: none; cursor: pointer; font-weight: bold; }
+    .card, .pesanan, .usercard { border: 1px solid #ccc; border-radius: 6px; padding: 10px; margin: 10px 0; }
+    .produk-list { display: flex; flex-wrap: wrap; gap: 10px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2>Vallzada Store</h2>
+  
+
+  <div id="authBox">
+    <input id="username" type="text" placeholder="Nama pengguna" />
+    <input id="password" type="password" placeholder="Kata sandi" />
+    <button onclick="login()">Login</button>
+    <button onclick="register()">Daftar</button>
+  </div>
+
+  <div id="mainBox" class="hidden">
+    <h3 id="userWelcome"></h3>
+
+    <div id="produkBox">
+      <h3>🛍 Katalog Produk</h3>
+      <input id="cariProdukId" placeholder="🔍 Cari berdasarkan ID Produk..." oninput="cariProdukById()" />
+      <div id="produkList" class="produk-list"></div>
+      <p id="jamInfo" style="font-style: italic; color: #555;"></p>
+      <button id="checkoutBtn" onclick="showCheckout()" class="hidden">🧾 Checkout</button>
+
+      <div id="checkoutForm" class="hidden">
+        <h4>Isi Data Tambahan:</h4>
+        <div id="formGame" class="hidden">
+          <input id="inputNick" placeholder="Nickname" />
+          <input id="inputGameId" placeholder="ID Game" />
+          <input id="inputServer" placeholder="Server" />
+          <input id="inputWa" placeholder="No WhatsApp" />
+        </div>
+        <button onclick="checkout()">Konfirmasi Pesanan</button>
+      </div>
+
+      <h3 id="riwayatTitle" class="hidden">🧾 Pesanan Saya</h3>
+      <button id="btnRefreshRiwayat" onclick="tampilkanRiwayatUser()" class="hidden">🔄 Refresh</button>
+      <div id="riwayatUser"></div>
+
+      <div id="pembayaranBox" class="hidden">
+        <h3>💳 Pembayaran</h3>
+        <select id="metodePembayaran" onchange="tampilkanMetode()">
+          <option value="qris">QRIS (Universal)</option>
+          <option value="dana">DANA</option>
+          <option value="ovo">OVO</option>
+          <option value="gopay">GoPay</option>
+        </select>
+        <div id="detailPembayaran" style="margin-top:15px;"></div>
+        <hr>
+
+        <a id="linkKonfirmasiWA" href="#" target="_blank">
+          <button style="background-color:#25D366; color:white;" onclick="setPembayaranBerhasil()">💬 Konfirmasi + bukti Transfer ke Admin via WhatsApp</button>
+        </a>
+        <button onclick="selesaiPembayaran()" style="background-color:#4CAF50; color:white; margin-top:10px;">✅ Selesai</button>
+
+      </div>
+    </div>
+
+    <div id="userActions" class="hidden">
+      <h3>🔐 Ubah Sandi</h3>
+      <input id="userNewPass" type="password" placeholder="Sandi Baru" />
+      <button onclick="ubahPasswordUser()">Simpan</button>
+      <h3>🗑 Hapus Akun</h3>
+      <button onclick="hapusUser()">Hapus Akun Saya</button>
+    </div>
+
+    <div id="adminBox" class="hidden">
+      <h3>⏰ Jam Operasional</h3>
+<input id="jamBuka" type="number" placeholder="Jam Buka (0-23)" min="0" max="23" />
+<input id="jamTutup" type="number" placeholder="Jam Tutup (0-23)" min="0" max="23" />
+<button onclick="aturJamOperasional()">Simpan Jam</button>
+<h3>🔒 Kontrol Checkout</h3>
+<label><input type="checkbox" id="blokirCheckout" onchange="toggleBlokirCheckout()"> Blokir Tombol Checkout</label>
+      <h3>Tambah Produk</h3>
+      <input id="productName" placeholder="Nama produk" />
+      <input id="productPrice" type="number" placeholder="Harga" />
+      <input id="productImage" placeholder="URL Gambar" />
+      <input id="productCategory" placeholder="Kategori (misal: diamond ff)" />
+      <button onclick="tambahProduk()">Tambah Produk</button>
+
+      <h3>🔐 Ubah Password Admin</h3>
+      <input id="adminNewPass" type="password" placeholder="Password Baru Admin" />
+      <button onclick="ubahPassAdmin()">Simpan Password</button>
+
+      <h3>📦 Semua Pesanan</h3>
+      <div style="display:flex; gap:10px; margin-bottom:10px;">
+     <input id="filterInvoice" placeholder="🔍 Masukkan Invoice..." style="flex:1;" oninput="filterPesananByInvoice()" />
+      </div>
+
+      <button onclick="exportToPDF()">📄 Ekspor PDF</button>
+      <button onclick="exportToExcel()">📊 Ekspor Excel</button>
+      <button onclick="tampilkanPesanan()">🔄 Refresh Pesanan</button>
+      <div id="pesananList"></div>
+
+      <h3>👥 Daftar User</h3>
+      <button onclick="tampilUserList()">🔄 Refresh Daftar</button>
+      <div id="userList"></div>
+    </div>
+
+    <button onclick="logout()">Logout</button>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAEdI46URRN8o3LG4Or3FD0qvl1SQ-P1Bc",
+  authDomain: "vallzada.firebaseapp.com",
+  databaseURL: "https://vallzada-default-rtdb.firebaseio.com",
+  projectId: "vallzada",
+  storageBucket: "vallzada.appspot.com"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let currentUser = null, isAdmin = false;
+let lastInvoice = "";
+
+const get = id => document.getElementById(id);
+const authBox = get("authBox"), mainBox = get("mainBox"),
+      produkList = get("produkList"), checkoutBtn = get("checkoutBtn"),
+      checkoutForm = get("checkoutForm"), formGame = get("formGame"),
+      inputNick = get("inputNick"), inputGameId = get("inputGameId"),
+      inputServer = get("inputServer"), inputWa = get("inputWa"),
+      userWelcome = get("userWelcome"), riwayatTitle = get("riwayatTitle"),
+      riwayatUser = get("riwayatUser"), pembayaranBox = get("pembayaranBox"),
+      adminBox = get("adminBox"), userActions = get("userActions"),
+      pesananList = get("pesananList"), userList = get("userList"),
+      linkWA = get("linkKonfirmasiWA"), selMetode = get("metodePembayaran");
+
+function register() {
+  const u = get("username").value.trim(), p = get("password").value;
+  if (!u || !p) return alert("Lengkapi form!");
+  if (u.toLowerCase()==="admin") return alert("Gunakan nama selain admin");
+  db.ref("users/"+u).get().then(s=> s.exists() ? alert("Username sudah ada") : db.ref("users/"+u).set({password:p}).then(()=>alert("Akun dibuat!")));
+}
+
+function login() {
+  const u = get("username").value.trim(), p = get("password").value;
+  if (!u||!p) return alert("Lengkapi login!");
+  const isAdm = u.toLowerCase()==="admin";
+  if (isAdm) {
+    db.ref("admin_pass").get().then(s=>{
+      const ap = s.exists()?s.val():"admin123";
+      if (p!==ap) return alert("Password admin salah");
+      currentUser="admin"; isAdmin=true; afterLogin();
+    });
+  } else {
+    db.ref("users/"+u).get().then(s=>{
+      if (!s.exists()||s.val().password!==p) return alert("User/password salah");
+      currentUser=u; isAdmin=false; afterLogin();
+    });
+  }
+}
+
+function afterLogin() {
+  authBox.classList.add("hidden");
+  mainBox.classList.remove("hidden");
+  userWelcome.innerText = isAdmin ? "Halo Admin" : `Halo, ${currentUser}`;
+  adminBox.classList.toggle("hidden",!isAdmin);
+  userActions.classList.toggle("hidden",isAdmin);
+  checkoutBtn.classList.toggle("hidden",isAdmin);
+  riwayatTitle.classList.toggle("hidden",!isAdmin);
+  get("btnRefreshRiwayat").classList.toggle("hidden",isAdmin);
+  tampilkanProduk();
+  if (isAdmin) {
+    tampilkanPesanan();
+    tampilUserList();
+    ambilStatusBlokir(); // ambil status blokir untuk admin
+  } else {
+    ambilStatusBlokir(); // ambil status blokir untuk user
+    tampilkanRiwayatUser();
+  }
+  ambilJam(()=>{});
+}
+
+
+
+function logout(){ location.reload(); }
+
+function tampilkanProduk() {
+  produkList.innerHTML="";
+  db.ref("products").once("value").then(s=>{
+    const data=s.val()||{};
+    for (let id in data) {
+      const p=data[id];
+      const card=document.createElement("div"); card.className="card";
+card.innerHTML=`<img src="${p.image}" width="100"><h4>${p.name}</h4><p>Rp${p.price.toLocaleString()}</p>`+
+  (isAdmin ? `<button onclick="hapusProduk('${id}')">🗑</button>` : `<label><input type="checkbox" value="${id}"> Pilih</label>`) +
+  `<small style="color:#888;">ID: ${id}</small>`;
+      produkList.append(card);
+    }
+  });
+}
+
+function showCheckout() {
+  const checks=produkList.querySelectorAll("input:checked");
+  if (!checks.length) return alert("Pilih produk!");
+  db.ref("products").once("value").then(s=>{
+    const all=s.val()||{}, need=["diamond ff","membership ff","diamond ml","membership ml","game"];
+    const butuh=[...checks].some(c=>need.includes((all[c.value]?.category||"").toLowerCase()));
+    checkoutBtn.classList.add("hidden"); checkoutForm.classList.remove("hidden");
+    formGame.classList.remove("hidden");
+  });
+}
+
+function checkout() {
+  ambilJam(j => {
+    const h = new Date().getHours();
+    if (h < j.buka || h >= j.tutup) {
+      alert(`Maaf, pemesanan hanya dapat dilakukan antara jam ${j.buka}:00 - ${j.tutup}:00 WIB.`);
+      return;
+    }
+
+    // lanjut proses checkout
+    const checks = produkList.querySelectorAll("input:checked");
+    if (!checks.length) return alert("Pilih produk!");
+    const gn=inputNick.value.trim(), gi=inputGameId.value.trim(), gb=inputServer.value.trim(), va=inputWa.value.trim();
+    const metode=selMetode.value;
+    db.ref("products").once("value").then(s=>{
+      const all=s.val()||{};
+      const need=["diamond ff","membership ff","diamond ml","membership ml","game"];
+      const butuh=[...checks].some(c=>need.includes((all[c.value]?.category||"").toLowerCase()));
+      if (!gn || !gi || !gb || !va) {
+  return alert("Harap isi semua data: Nickname, ID Game, Server, dan No WhatsApp!");
+}
+
+      let items=[], total=0;
+      checks.forEach(c=>{
+        const p=all[c.value];
+        const i={id:c.value,price:p.price,category:p.category};
+        i.Nick = gn;
+        i.gameId = gi;
+        i.Server = gb;
+        i.Whatsapp = va;
+
+        items.push(i); total+=p.price;
+      });
+
+      const inv="INV"+Date.now();
+      lastInvoice=inv;
+      db.ref("orders/"+inv).set({invoice:inv,user:currentUser,date:new Date().toLocaleString(),items,total,metode,status:"Menunggu Pembayaran"}).then(()=>{
+        alert("Pesanan dibuat!");
+        checkoutForm.classList.add("hidden");
+        pembayaranBox.classList.remove("hidden");
+        pembayaranBox.scrollIntoView({behavior:"smooth"});
+        pembayaranBox.style.border="2px solid #00bcd4";
+        setTimeout(()=>pembayaranBox.style.border="",3000);
+        linkWA.href=`https://wa.me/6281547458507?text=Halo%20Admin,%20saya%20telah%20melakukan%20pembayaran%20pesanan%20${inv}`;
+        tampilkanMetode(); tampilkanRiwayatUser();
+      });
+    });
+  });
+}
+
+
+function tampilkanMetode(){
+  const m=selMetode.value, n1="RIV**** ILH** ARI****", r="088803149627", n2="VALLZ STORE";
+  let html = m==="qris" ? "<img src='https://files.catbox.moe/t3md8b.jpg' width='200' />"
+    : `<p>Nomor ${m.toUpperCase()}: ${r}</p><p>Atas Nama: ${m==="gopay"?n2:n1}</p>`;
+  get("detailPembayaran").innerHTML=html;
+  if (lastInvoice) db.ref("orders/"+lastInvoice+"/metode").set(m);
+}
+
+function setPembayaranBerhasil(){
+  if (lastInvoice) db.ref("orders/"+lastInvoice+"/status").set("Pembayaran Berhasil");
+}
+
+function tampilkanRiwayatUser(){
+  riwayatUser.innerHTML="";
+  db.ref("orders").orderByChild("user").equalTo(currentUser).once("value").then(s=>{
+    const data=s.val()||{};
+    for (let id in data){
+      const o=data[id];
+      const d=document.createElement("div"); d.className="pesanan";
+      d.innerHTML=`<b>${o.invoice}</b> | ${o.date}<br>Total: Rp${o.total.toLocaleString()}<br>Metode: ${o.metode?.toUpperCase()||'-'}<br>Status: ${o.status}`;
+      riwayatUser.append(d);
+    }
+  });
+}
+
+function tampilkanPesanan(){
+pesananList.innerHTML="";
+  db.ref("orders").once("value").then(s=>{
+    const data=s.val()||{};
+    for (let id in data){
+      const o=data[id];
+      const d=document.createElement("div"); d.className="pesanan";
+      d.innerHTML = `
+  <b>${o.invoice}</b> | ${o.date} | User: ${o.user}<br>Total: Rp${o.total.toLocaleString()}<br>Metode: ${o.metode?.toUpperCase()||'-'}<br>
+  Status:
+  <select onchange="ubahStatusPesanan('${id}',this.value)">
+    ${["Menunggu Pembayaran","Pembayaran Berhasil","Diproses","Selesai","Dibatalkan"].map(st=>`<option ${o.status===st?"selected":""}>${st}</option>`).join('')}
+  </select>
+  <button onclick="hapusPesanan('${id}')">🗑 Hapus</button>
+  <details><summary>Detail</summary>
+    ${o.items.map(i=>`<div>- ${i.id} (${i.category}) | Rp${i.price.toLocaleString()}${i.Nick?`<br>&nbsp;&nbsp;Nick:${i.Nick} (${i.gameId})`:''}${i.Server?`<br>&nbsp;&nbsp;Server:${i.Server}`:''}${i.Whatsapp?`<br>&nbsp;&nbsp;WA:${i.Whatsapp}`:''}</div>`).join('')}
+  </details>`;
+      pesananList.append(d);
+    }
+  });
+}
+function filterPesananByInvoice() {
+  const keyword = get("filterInvoice").value.toLowerCase();
+  const pesananDivs = pesananList.querySelectorAll(".pesanan");
+
+  pesananDivs.forEach(div => {
+    const text = div.textContent.toLowerCase();
+    div.style.display = text.includes(keyword) ? "" : "none";
+  });
+}
+
+
+function ubahStatusPesanan(id,st){
+  db.ref("orders/"+id+"/status").set(st).then(()=>tampilkanPesanan());
+}
+
+function hapusProduk(id){
+  if(confirm("Hapus produk?")) db.ref("products/"+id).remove().then(tampilkanProduk);
+}
+
+function tampilUserList(){
+  userList.innerHTML="";
+  db.ref("users").once("value").then(s=>{
+    const u=s.val()||{};
+    for(let name in u){
+      const c=document.createElement("div"); c.className="usercard";
+      c.innerHTML=`<b>${name}</b><br>Password: ${u[name].password}
+        <button onclick="resetPassAdmin('${name}')">🔑 Reset Pass</button>
+        <button onclick="hapusUserAdmin('${name}')">🗑 Hapus User</button>`;
+      userList.append(c);
+    }
+  });
+}
+
+function tambahProduk(){
+  const n=get("productName").value.trim(), p=parseInt(get("productPrice").value), img=get("productImage").value.trim(), cat=get("productCategory").value.trim();
+  if(!n||!p||!img||!cat)return alert("Lengkapi data produk");
+  const id=Date.now().toString();
+  db.ref("products/"+id).set({name:n,price:p,image:img,category:cat}).then(tampilkanProduk);
+}
+
+function resetPassAdmin(name){
+  const np=prompt("Password baru untuk "+name);
+  if(np)db.ref("users/"+name+"/password").set(np).then(tampilUserList);
+}
+
+function hapusUserAdmin(name){
+  if(confirm("Hapus user "+name+"?"))db.ref("users/"+name).remove().then(tampilUserList);
+}
+
+function ubahPasswordUser(){
+  const np=get("userNewPass").value;
+  if(!np)return alert("Isi sandi baru");
+  db.ref("users/"+currentUser+"/password").set(np).then(()=>alert("Sandi diperbarui"));
+}
+
+function hapusUser(){
+  if(confirm("Hapus akun?"))db.ref("users/"+currentUser).remove().then(()=>db.ref("orders").orderByChild("user").equalTo(currentUser).once("value").then(s=>{
+    for(let k in s.val()||{})db.ref("orders/"+k).remove();
+    location.reload();
+  }));
+}
+
+function ubahPassAdmin(){
+  const np=get("adminNewPass").value;
+  if(!np)return alert("Isi sandi baru admin");
+  db.ref("admin_pass").set(np).then(()=>alert("Password admin disimpan"));
+}
+
+function exportToPDF(){
+  const { jsPDF }=window.jspdf; const doc=new jsPDF(); let y=10;
+  db.ref("orders").once("value").then(s=>{
+    Object.values(s.val()||{}).forEach(o=>{
+      doc.text(`Invoice: ${o.invoice} | User: ${o.user} | Total: Rp${o.total.toLocaleString()} | Metode: ${o.metode?.toUpperCase()}` ,10,y); y+=7;
+      o.items.forEach(i=>{ doc.text(`- ${i.id} (${i.category}) Rp${i.price.toLocaleString()}`,12,y); y+=6; });
+      y+=5; if(y>270){doc.addPage(); y=10;}
+    });
+    doc.save("pesanan.pdf");
+  });
+}
+
+function exportToExcel(){
+  db.ref("orders").once("value").then(s=>{
+    const o=s.val()||{}, rows=[["Invoice","Tanggal","User","Metode","Produk","Kategori","Harga","Nick","GameID","Server","WA","Status"]];
+    Object.values(o).forEach(p=>p.items.forEach(i=>rows.push([p.invoice,p.date,p.user,p.metode?.toUpperCase(),i.id,i.category,i.price,i.Nick||"",i.gameId||"",i.Server||"",i.Whatsapp||"",p.status])));
+    const wb=XLSX.utils.book_new(), ws=XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb,ws,"Pesanan"); XLSX.writeFile(wb,"pesanan.xlsx");
+  });
+}
+
+function hapusPesanan(id) {
+  if (confirm("Yakin ingin menghapus pesanan ini?")) {
+    db.ref("orders/" + id).remove().then(() => {
+      alert("Pesanan berhasil dihapus!");
+      tampilkanPesanan();
+    });
+  }
+}
+
+function selesaiPembayaran() {
+  alert("Terima kasih! Silakan tunggu admin memproses pesanan Anda.");
+  pembayaranBox.classList.add("hidden");
+  get("inputNick").value = "";
+  get("inputGameId").value = "";
+  get("inputServer").value = "";
+  get("inputWa").value = "";
+  produkList.querySelectorAll("input[type=checkbox]").forEach(c => c.checked = false);
+  tampilkanRiwayatUser();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function aturJamOperasional() {
+  const buka = parseInt(jamBuka.value), tutup = parseInt(jamTutup.value);
+  if (buka>=0 && buka<=23 && tutup>=0 && tutup<=23) {
+    db.ref("jam_operasional").set({ buka, tutup }).then(() => alert("Jam disimpan!"));
+  } else alert("Masukkan jam 0-23");
+}
+
+function ambilJam(cb) {
+  db.ref("jam_operasional").once("value").then(s=>{
+    const j = s.val()||{buka:7,tutup:22};
+    if(isAdmin){
+      jamBuka.value = j.buka;
+      jamTutup.value = j.tutup;
+    } else {
+      get("jamInfo").innerText = `🕒 Jam Operasional: ${j.buka}:00 - ${j.tutup}:00 WIB`;
+    }
+    cb(j);
+  });
+}
+
+function toggleBlokirCheckout() {
+  const status = get("blokirCheckout").checked;
+  db.ref("pengaturan/blokir_checkout").set(status).then(() => {
+    alert(status ? "Checkout diblokir!" : "Checkout diaktifkan!");
+  });
+}
+
+function ambilStatusBlokir() {
+  db.ref("pengaturan/blokir_checkout").once("value").then(s => {
+    const blokir = !!s.val();
+    if (isAdmin) {
+      get("blokirCheckout").checked = blokir;
+    } else {
+      if (blokir) {
+        checkoutBtn.disabled = true;
+        checkoutBtn.innerText = "⛔ Checkout Diblokir oleh Admin";
+      } else {
+        checkoutBtn.disabled = false;
+        checkoutBtn.innerText = "🧾 Checkout";
+      }
+    }
+  });
+}
+
+function cariProdukById() {
+  const keyword = get("cariProdukId").value.trim().toLowerCase();
+  const cards = produkList.querySelectorAll(".card");
+
+  cards.forEach(card => {
+    const idProduk = card.querySelector("input")?.value || "";
+    card.style.display = idProduk.toLowerCase().includes(keyword) ? "" : "none";
+  });
+}
+
+
+
+</script>
+</body>
+</html>
